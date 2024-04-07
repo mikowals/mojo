@@ -16,6 +16,7 @@ These are Mojo built-ins, so you don't need to import them.
 """
 
 from sys.intrinsics import _mlirtype_is_eq
+from collections import OptionalReg
 
 
 @always_inline("nodebug")
@@ -169,6 +170,76 @@ struct Slice(Sized, Stringable, EqualityComparable):
     @always_inline("nodebug")
     fn _has_end(self) -> Bool:
         return self.end != _int_max_value()
+
+
+@value
+@register_passable("trivial")
+struct RawSlice:
+    """Represents a slice expression with optional indices.
+    Objects of this type are generated when slice syntax is used within
+    square brackets, but some or all of the indices may be optional.
+    Optional indices are represented as `None` values.
+    """
+
+    var start: OptionalReg[Int]
+    """The starting index of the slice, or None."""
+    var end: OptionalReg[Int]
+    """The end index of the slice, or None."""
+    var step: Int
+    """The step increment value of the slice."""
+
+    @always_inline("nodebug")
+    fn __init__(
+        inout self,
+        start: OptionalReg[Int],
+        end: OptionalReg[Int],
+        step: OptionalReg[Int],
+    ):
+        """Construct slice given optional start and end indices along with a step value.
+
+        Args:
+            start: The optional start value.
+            end: The optional end value.
+            step: The step value.
+        """
+        self.start = start
+        self.end = end
+        self.step = step.value() if step else 1
+
+    fn adjust(self, size: Int) -> Slice:
+        """Convert a slice which may have None indices to one with numeric indices.
+
+        Args:
+            size: The size of the array/sequence being sliced.
+
+        Returns:
+            A Slice with numeric indices.  The indices will be non-negative integers
+            representing actual indices within the length of the slice exept in the case where
+            step is negative and end must be negative to allow inclusion of the element at index 0.
+        """
+        debug_assert(self.step == 0, "Step cannot be zero")
+
+        var step = self.step
+        var default_start = 0 if step > 0 else size - 1
+        var default_end = size if step > 0 else -1
+        var start: Int = default_start
+        var end: Int = default_end
+        if self.start:
+            start = self.start.value()
+            if start < 0:
+                start += size
+
+        if self.end:
+            end = self.end.value()
+            if end < 0:
+                end += size
+
+        if step < 0:
+            start = start if start < default_start else default_start
+        else:
+            end = end if end < default_end else default_end
+
+        return Slice(start, end, self.step)
 
 
 @always_inline("nodebug")

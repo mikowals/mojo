@@ -395,27 +395,7 @@ struct List[T: CollectionElement](CollectionElement, Sized):
         (self.data + normalized_idx).emplace_value(value^)
 
     @always_inline
-    fn _adjust_span(self, span: Slice) -> Slice:
-        """Adjusts the span based on the list length."""
-        var adjusted_span = span
-
-        if adjusted_span.start < 0:
-            adjusted_span.start = len(self) + adjusted_span.start
-
-        if not adjusted_span._has_end():
-            adjusted_span.end = len(self)
-        elif adjusted_span.end < 0:
-            adjusted_span.end = len(self) + adjusted_span.end
-
-        if span.step < 0:
-            var tmp = adjusted_span.end
-            adjusted_span.end = adjusted_span.start - 1
-            adjusted_span.start = tmp - 1
-
-        return adjusted_span
-
-    @always_inline
-    fn __getitem__(self, span: Slice) -> Self:
+    fn __getitem__(self, span: RawSlice) -> Self:
         """Gets the sequence of elements at the specified positions.
 
         Args:
@@ -425,7 +405,7 @@ struct List[T: CollectionElement](CollectionElement, Sized):
             A new list containing the list at the specified span.
         """
 
-        var adjusted_span = self._adjust_span(span)
+        var adjusted_span = span.adjust(len(self))
         var adjusted_span_len = len(adjusted_span)
 
         if not adjusted_span_len:
