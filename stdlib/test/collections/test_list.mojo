@@ -475,17 +475,63 @@ def test_list_span():
     assert_equal(es[0], 2)
     assert_equal(len(es), 1)
 
-    es = vs[::-1]
-    assert_equal(es[0], 3)
-    assert_equal(es[1], 2)
-    assert_equal(es[2], 1)
-    assert_equal(len(es), 3)
-
     es = vs[:]
     assert_equal(es[0], 1)
     assert_equal(es[1], 2)
     assert_equal(es[2], 3)
     assert_equal(len(es), 3)
+
+
+def test_list_span_negative_step():
+    var vs = List[Int](1, 2, 3)
+    var test_name = "test_list_span_negative_step"
+
+    var description = test_name + " : all reversed"
+    es = vs[::-1]
+    assert_equal(es[0], 3, description)
+    assert_equal(es[1], 2, description)
+    assert_equal(es[2], 1, description)
+    assert_equal(len(es), 3, description)
+
+    description = test_name + " : last element with negative start and negative step"
+    es = vs[-1:-2:-1]
+    assert_equal(es[0], 3, description)
+    assert_equal(len(es), 1, description)
+
+    description = test_name + " : last element with positive start and positive end"
+    es = vs[2:1:-1]
+    assert_equal(es[0], 3, description)
+    assert_equal(len(es), 1, description)
+
+    description = test_name + " : last element with no start and positive end"
+    es = vs[:1:-1]
+    assert_equal(es[0], 3, description)
+    assert_equal(len(es), 1, description)
+
+    description = test_name + " : last element with no start and negative end"
+    es = vs[:-2:-1]
+    assert_equal(es[0], 3, description)
+    assert_equal(len(es), 1, description)
+
+    description = test_name + " : middle element with negative start and negative end"
+    es = vs[-2:-3:-1]
+    assert_equal(es[0], 2, description)
+    assert_equal(len(es), 1, description)
+
+    description = test_name + " : middle element with positive start and positive end"
+    es = vs[1:0:-1]
+    assert_equal(es[0], 2)
+    assert_equal(len(es), 1)
+
+    description = test_name + " : first element with negative start and no end"
+    es = vs[-3::-1]
+    assert_equal(es[0], 1, description)
+    assert_equal(len(es), 1, description)
+
+    description = test_name + " : first element with zero start and no end"
+    es = vs[0::-1]
+    assert_equal(es[0], 1, description)
+    assert_equal(len(es), 1, description)
 
 
 def main():
@@ -504,3 +550,4 @@ def main():
     test_list_iter()
     test_list_iter_mutable()
     test_list_span()
+    test_list_span_negative_step()

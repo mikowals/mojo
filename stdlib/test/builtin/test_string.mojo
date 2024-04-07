@@ -190,11 +190,23 @@ fn test_string_indexing() raises:
 
     assert_equal("!!ojoM olleH", str[::-1])
 
-    assert_equal("!!ojoM oll", str[2::-1])
+    assert_equal("leH", str[2::-1])
 
     assert_equal("!oo le", str[::-2])
 
-    assert_equal("!jMolH", str[:-1:-2])
+    assert_equal("", str[:-1:-2])
+
+
+fn test_string_indexing_negative_step() raises:
+    var str = String("abc")
+    assert_equal("cba", str[::-1])
+    assert_equal("c", str[:1:-1])
+    assert_equal("c", str[-1:-2:-1])
+    assert_equal("c", str[2:1:-1])
+    assert_equal("b", str[1:0:-1])
+    assert_equal("b", str[-2:-3:-1])
+    assert_equal("a", str[-3::-1])
+    assert_equal("a", str[0::-1])
 
 
 fn test_atol() raises:
@@ -218,13 +230,10 @@ fn test_atol() raises:
     try:
         _ = atol(String("9223372036854775832"))
         raise Error(
-            "Failed to raise when converting an integer too large to store in"
-            " Int."
+            "Failed to raise when converting an integer too large to store in Int."
         )
     except e:
-        assert_equal(
-            str(e), "String expresses an integer too large to store in Int."
-        )
+        assert_equal(str(e), "String expresses an integer too large to store in Int.")
 
 
 fn test_calc_initial_buffer_size_int32() raises:
@@ -354,9 +363,7 @@ fn test_split() raises:
         _ = String("hello").split("")
         raise Error("failed to reject empty delimiter")
     except e:
-        assert_equal(
-            "empty delimiter not allowed to be passed to split.", str(e)
-        )
+        assert_equal("empty delimiter not allowed to be passed to split.", str(e))
 
     # Split in middle
     var d1 = String("n")
@@ -594,6 +601,7 @@ def main():
     test_ord()
     test_chr()
     test_string_indexing()
+    test_string_indexing_negative_step()
     test_atol()
     test_calc_initial_buffer_size_int32()
     test_calc_initial_buffer_size_int64()
