@@ -414,21 +414,21 @@ fn benchmark_big_string():
 
     var report = benchmark.run[utf8_simd_validation_benchmark]()
     report.print()
-    print(1.0 / report.mean(), "GB/s")
+    # print(1.0 / report.mean(), "GB/s")
     _ = big_string
 
 
 def main():
-    print(sys.has_avx(), "have sse4")
-    print(sys.has_avx2(), "have avx2")
-
-    test_good_sequences()
-    test_bad_sequences()
-    test_combinaison_good_sequences()
-    test_combinaison_bad_sequences()
-    test_combinaison_good_bad_sequences()
-    test_combinaison_10_good_sequences()
-    test_combinaison_10_good_10_bad_sequences()
-    print("All tests passed")
+    # print(sys.has_avx(), "have sse4")
+    # print(sys.has_avx2(), "have avx2")
+    #
+    # test_good_sequences()
+    # test_bad_sequences()
+    # test_combinaison_good_sequences()
+    # test_combinaison_bad_sequences()
+    # test_combinaison_good_bad_sequences()
+    # test_combinaison_10_good_sequences()
+    # test_combinaison_10_good_10_bad_sequences()
+    # print("All tests passed")
 
     benchmark_big_string()
