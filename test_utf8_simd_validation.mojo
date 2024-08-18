@@ -15,7 +15,7 @@ from memory import memcpy
 from sys._assembly import inlined_assembly
 import sys
 from testing import assert_true, assert_false
-
+import benchmark
 
 alias VECTOR_SIZE = 16
 alias BytesVector = SIMD[DType.uint8, VECTOR_SIZE]
@@ -213,11 +213,9 @@ fn check_utf8_bytes(
     previous: ProcessedUtfBytes,
     inout has_error: BoolsVector,
 ) -> ProcessedUtfBytes:
-    print("current_bytes", current_bytes)
     var pb = ProcessedUtfBytes(BytesVector(), BytesVector(), BytesVector())
     count_nibbles(current_bytes, pb)
     check_smaller_than_0xF4(current_bytes, has_error)
-    print("has_error after check_smaller", has_error)
 
     var initial_lengths = continuation_lengths(pb.high_nibbles)
     pb.carried_continuations = carry_continuations(
@@ -225,12 +223,10 @@ fn check_utf8_bytes(
     )
 
     check_continuations(initial_lengths, pb.carried_continuations, has_error)
-    print("has_error after check_continuations", has_error)
     var off1_current_bytes = _mm_alignr_epi8[16 - 1](
         pb.raw_bytes, previous.raw_bytes
     )
     check_first_continuation_max(current_bytes, off1_current_bytes, has_error)
-    print("has_error after check_first_continuation_max", has_error)
     check_overlong(
         current_bytes,
         off1_current_bytes,
@@ -238,7 +234,6 @@ fn check_utf8_bytes(
         previous.high_nibbles,
         has_error,
     )
-    print("has_error after check_overlong", has_error)
 
     return pb
 
@@ -250,8 +245,6 @@ fn validate_utf8_fast(source: UnsafePointer[UInt8], length: Int) -> Bool:
         BytesVector(), BytesVector(), BytesVector()
     )
     while i + VECTOR_SIZE <= length:
-        print("in main loop")
-        print("has_error", has_error)
         var current_bytes = (source + i).load[width=VECTOR_SIZE]()
         previous = check_utf8_bytes(current_bytes, previous, has_error)
         i += VECTOR_SIZE
@@ -261,8 +254,6 @@ fn validate_utf8_fast(source: UnsafePointer[UInt8], length: Int) -> Bool:
         var buffer = BytesVector(0)
         for j in range(i, length):
             buffer[j - i] = (source + j)[]
-        print("*** last iteration***")
-        print("has_error", has_error)
         previous = check_utf8_bytes(buffer, previous, has_error)
     else:
         alias base = BytesVector(9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 1)
@@ -270,6 +261,10 @@ fn validate_utf8_fast(source: UnsafePointer[UInt8], length: Int) -> Bool:
         has_error |= comparison
 
     return not has_error.reduce_or()
+
+
+fn validate_utf8_fast(string: String) -> Bool:
+    return validate_utf8_fast(string.unsafe_ptr(), len(string))
 
 
 fn ljust8(string: String, char: String = " ") -> String:
@@ -306,136 +301,132 @@ fn display_all(string: String):
     display_as_number(string)
 
 
+alias GOOD_SEQUENCES = List[String](
+    "a",
+    "\xc3\xb1",
+    "\xe2\x82\xa1",
+    "\xf0\x90\x8c\xbc",
+    "안녕하세요, 세상",
+    "\xc2\x80",  # 6.7.2
+    "\xf0\x90\x80\x80",  # 6.7.4
+    "\xee\x80\x80",  # 6.11.2
+    "very very very long string 🔥🔥🔥",
+)
+
+
+alias BAD_SEQUENCES = List[String](
+    "\xc3\x28",  # 0
+    "\xa0\xa1",  # 1
+    "\xe2\x28\xa1",  # 2
+    "\xe2\x82\x28",  # 3
+    "\xf0\x28\x8c\xbc",  # 4
+    "\xf0\x90\x28\xbc",  # 5
+    "\xf0\x28\x8c\x28",  # 6
+    "\xc0\x9f",  # 7
+    "\xf5\xff\xff\xff",  # 8
+    "\xed\xa0\x81",  # 9
+    "\xf8\x90\x80\x80\x80",  # 10
+    "123456789012345\xed",  # 11
+    "123456789012345\xf1",  # 12
+    "123456789012345\xc2",  # 13
+    "\xC2\x7F",  # 14
+    "\xce",  # 6.6.1
+    "\xce\xba\xe1",  # 6.6.3
+    "\xce\xba\xe1\xbd",  # 6.6.4
+    "\xce\xba\xe1\xbd\xb9\xcf",  # 6.6.6
+    "\xce\xba\xe1\xbd\xb9\xcf\x83\xce",  # 6.6.8
+    "\xce\xba\xe1\xbd\xb9\xcf\x83\xce\xbc\xce",  # 6.6.10
+    "\xdf",  # 6.14.6
+    "\xef\xbf",  # 6.14.7
+)
+
+
+def test_good_sequences():
+    for sequence in GOOD_SEQUENCES:
+        assert_true(validate_utf8_fast(sequence[]))
+
+
+def test_bad_sequences():
+    for sequence in BAD_SEQUENCES:
+        assert_false(validate_utf8_fast(sequence[]))
+
+
+def test_combinaison_good_sequences():
+    # any combinaison of good sequences should be good
+    for i in range(0, len(GOOD_SEQUENCES)):
+        for j in range(i, len(GOOD_SEQUENCES)):
+            var sequence = GOOD_SEQUENCES[i] + GOOD_SEQUENCES[j]
+            assert_true(validate_utf8_fast(sequence))
+
+
+def test_combinaison_bad_sequences():
+    # any combinaison of bad sequences should be bad
+    for i in range(0, len(BAD_SEQUENCES)):
+        for j in range(i, len(BAD_SEQUENCES)):
+            var sequence = BAD_SEQUENCES[i] + BAD_SEQUENCES[j]
+            assert_false(validate_utf8_fast(sequence))
+
+
+def test_combinaison_good_bad_sequences():
+    # any combinaison of good and bad sequences should be bad
+    for i in range(0, len(GOOD_SEQUENCES)):
+        for j in range(0, len(BAD_SEQUENCES)):
+            var sequence = GOOD_SEQUENCES[i] + BAD_SEQUENCES[j]
+            assert_false(validate_utf8_fast(sequence))
+
+
+def test_combinaison_10_good_sequences():
+    # any 10 combinaison of good sequences should be good
+    for i in range(0, len(GOOD_SEQUENCES)):
+        for j in range(i, len(GOOD_SEQUENCES)):
+            var sequence = GOOD_SEQUENCES[i] * 10 + GOOD_SEQUENCES[j] * 10
+            assert_true(validate_utf8_fast(sequence))
+
+
+def test_combinaison_10_good_10_bad_sequences():
+    # any 10 combinaison of good and bad sequences should be bad
+    for i in range(0, len(GOOD_SEQUENCES)):
+        for j in range(0, len(BAD_SEQUENCES)):
+            var sequence = GOOD_SEQUENCES[i] * 10 + BAD_SEQUENCES[j] * 10
+            assert_false(validate_utf8_fast(sequence))
+
+
+fn get_big_string() -> String:
+    var string = str(
+        "안녕하세요,세상 hello mojo! 🔥🔥hopefully this string is complicated enough :p"
+        " éç__çè"
+    )
+    # The string is 100 bytes long.
+    return string * 100_000  # 10MB
+
+
+fn benchmark_big_string():
+    var big_string = get_big_string()
+
+    @parameter
+    fn utf8_simd_validation_benchmark():
+        # we want to validate ~1gb of data
+        for _ in range(100):
+            var result = validate_utf8_fast(big_string)
+            benchmark.keep(result)
+
+    var report = benchmark.run[utf8_simd_validation_benchmark]()
+    report.print()
+    print(1.0 / report.mean(), "GB/s")
+    _ = big_string
+
+
 def main():
     print(sys.has_avx(), "have sse4")
     print(sys.has_avx2(), "have avx2")
 
-    var good_sequences = List[String](
-        "a",
-        "\xc3\xb1",
-        "\xe2\x82\xa1",
-        "\xf0\x90\x8c\xbc",
-        "안녕하세요, 세상",
-        "\xc2\x80",  # 6.7.2
-        "\xf0\x90\x80\x80",  # 6.7.4
-        "\xee\x80\x80",  # 6.11.2
-    )
+    test_good_sequences()
+    test_bad_sequences()
+    test_combinaison_good_sequences()
+    test_combinaison_bad_sequences()
+    test_combinaison_good_bad_sequences()
+    test_combinaison_10_good_sequences()
+    test_combinaison_10_good_10_bad_sequences()
+    print("All tests passed")
 
-    for sequence in good_sequences:
-        print(
-            "testing good sequence '"
-            + sequence[]
-            + "'-----------------------------------------------------------------"
-        )
-        display_all(sequence[])
-        assert_true(
-            validate_utf8_fast(sequence[].unsafe_ptr(), len(sequence[]))
-        )
-
-    var bad_sequences = List[String](
-        "\xc3\x28",  # 0
-        "\xa0\xa1",  # 1
-        "\xe2\x28\xa1",  # 2
-        "\xe2\x82\x28",  # 3
-        "\xf0\x28\x8c\xbc",  # 4
-        "\xf0\x90\x28\xbc",  # 5
-        "\xf0\x28\x8c\x28",  # 6
-        "\xc0\x9f",  # 7
-        "\xf5\xff\xff\xff",  # 8
-        "\xed\xa0\x81",  # 9
-        "\xf8\x90\x80\x80\x80",  # 10
-        "123456789012345\xed",  # 11
-        "123456789012345\xf1",  # 12
-        "123456789012345\xc2",  # 13
-        "\xC2\x7F",  # 14
-        "\xce",  # 6.6.1
-        "\xce\xba\xe1",  # 6.6.3
-        "\xce\xba\xe1\xbd",  # 6.6.4
-        "\xce\xba\xe1\xbd\xb9\xcf",  # 6.6.6
-        "\xce\xba\xe1\xbd\xb9\xcf\x83\xce",  # 6.6.8
-        "\xce\xba\xe1\xbd\xb9\xcf\x83\xce\xbc\xce",  # 6.6.10
-        "\xdf",  # 6.14.6
-        "\xef\xbf",  # 6.14.7
-    )
-
-    for sequence in bad_sequences:
-        print(
-            "testing bad"
-            " sequence-----------------------------------------------------------------"
-        )
-        display_all(sequence[])
-        assert_false(
-            validate_utf8_fast(sequence[].unsafe_ptr(), len(sequence[]))
-        )
-
-    # any combinaison of good sequences should be good
-    for i in range(0, len(good_sequences)):
-        for j in range(i, len(good_sequences)):
-            var sequence = good_sequences[i] + good_sequences[j]
-            print(
-                "testing good x good sequence '"
-                + sequence
-                + "'-----------------------------------------------------------------"
-            )
-            display_all(sequence)
-            assert_true(
-                validate_utf8_fast(sequence.unsafe_ptr(), len(sequence))
-            )
-            _ = sequence
-
-    # any combinaison of bad sequences should be bad
-    for i in range(0, len(bad_sequences)):
-        for j in range(i, len(bad_sequences)):
-            var sequence = bad_sequences[i] + bad_sequences[j]
-            print(
-                "testing bad x bad sequence"
-                " -----------------------------------------------------------------"
-            )
-            display_all(sequence)
-            assert_false(
-                validate_utf8_fast(sequence.unsafe_ptr(), len(sequence))
-            )
-            _ = sequence
-
-    # any combinaison of good and bad sequences should be bad
-    for i in range(0, len(good_sequences)):
-        for j in range(0, len(bad_sequences)):
-            var sequence = good_sequences[i] + bad_sequences[j]
-            print(
-                "testing good x bad sequence"
-                " -----------------------------------------------------------------"
-            )
-            display_all(sequence)
-            assert_false(
-                validate_utf8_fast(sequence.unsafe_ptr(), len(sequence))
-            )
-            _ = sequence
-
-    # any 10 combinaison of good sequences should be good
-    for i in range(0, len(good_sequences)):
-        for j in range(i, len(good_sequences)):
-            var sequence = good_sequences[i] * 10 + good_sequences[j] * 10
-            print(
-                "testing 10good x 10good sequence '"
-                + sequence
-                + "'-----------------------------------------------------------------"
-            )
-            display_all(sequence)
-            assert_true(
-                validate_utf8_fast(sequence.unsafe_ptr(), len(sequence))
-            )
-            _ = sequence
-
-    # any 10 combinaison of good and bad sequences should be bad
-    for i in range(0, len(good_sequences)):
-        for j in range(0, len(bad_sequences)):
-            var sequence = good_sequences[i] * 10 + bad_sequences[j] * 10
-            print(
-                "testing 10 good x 10 bad sequence"
-                " -----------------------------------------------------------------"
-            )
-            display_all(sequence)
-            assert_false(
-                validate_utf8_fast(sequence.unsafe_ptr(), len(sequence))
-            )
-            _ = sequence
+    benchmark_big_string()

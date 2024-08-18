@@ -19,3 +19,4 @@ venv.bak/
 
 # MacOS
 .DS_Store
+/test_utf8_simd_validation
