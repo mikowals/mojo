@@ -209,7 +209,7 @@ fn check_overlong(
     has_error |= initial_under & second_under
 
 
-@always_inline
+@no_inline
 fn check_utf8_bytes(
     current_bytes: BytesVector,
     previous: ProcessedUtfBytes,
