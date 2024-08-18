@@ -413,7 +413,9 @@ fn benchmark_big_string():
             var result = validate_utf8_fast(big_string)
             benchmark.keep(result)
 
-    var report = benchmark.run[utf8_simd_validation_benchmark]()
+    var report = benchmark.run[utf8_simd_validation_benchmark](
+        min_runtime_secs=5
+    )
     report.print()
     # print(1.0 / report.mean(), "GB/s")
     _ = big_string
