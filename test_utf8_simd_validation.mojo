@@ -63,6 +63,19 @@ fn subtract_with_saturation[b: Int](a: BytesVector) -> BytesVector:
 
 
 @always_inline
+fn subtract_with_saturation_llvm[b: Int](a: BytesVector) -> BytesVector:
+    """The equivalent of https://doc.rust-lang.org/core/arch/x86_64/fn._mm_subs_epu8.html .
+    """
+    var b_as_vector = BytesVector(b)
+
+    return sys.llvm_intrinsic[
+        "llvm.usub.sat.v16i8",
+        SIMD[DType.uint8, 16],
+        has_side_effect=False,
+    ](a, b_as_vector)
+
+
+@always_inline
 fn count_nibbles(bytes: BytesVector, inout answer: ProcessedUtfBytes):
     answer.raw_bytes = bytes
     answer.high_nibbles = bytes >> 4
@@ -108,11 +121,11 @@ fn continuation_lengths(high_nibbles: BytesVector) -> BytesVector:
 fn carry_continuations(
     initial_lengths: BytesVector, previous_carries: BytesVector
 ) -> BytesVector:
-    var right1 = subtract_with_saturation[1](
+    var right1 = subtract_with_saturation_llvm[1](
         _mm_alignr_epi8[16 - 1](initial_lengths, previous_carries)
     )
     var sum = initial_lengths + right1
-    var right2 = subtract_with_saturation[2](
+    var right2 = subtract_with_saturation_llvm[2](
         _mm_alignr_epi8[16 - 2](sum, previous_carries)
     )
     return sum + right2
