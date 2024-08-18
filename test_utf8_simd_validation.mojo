@@ -238,6 +238,7 @@ fn check_utf8_bytes(
     return pb
 
 
+@no_inline
 fn validate_utf8_fast(source: UnsafePointer[UInt8], length: Int) -> Bool:
     var i: Int = 0
     var has_error = BoolsVector()
@@ -263,6 +264,7 @@ fn validate_utf8_fast(source: UnsafePointer[UInt8], length: Int) -> Bool:
     return not has_error.reduce_or()
 
 
+@no_inline
 fn validate_utf8_fast(string: String) -> Bool:
     return validate_utf8_fast(string.unsafe_ptr(), len(string))
 
