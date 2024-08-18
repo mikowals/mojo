@@ -55,10 +55,11 @@ fn _mm_alignr_epi8[count: Int](a: BytesVector, b: BytesVector) -> BytesVector:
 
 
 @always_inline
-fn subtract_with_saturation(a: BytesVector, b: Int) -> BytesVector:
+fn subtract_with_saturation[b: Int](a: BytesVector) -> BytesVector:
     """The equivalent of https://doc.rust-lang.org/core/arch/x86_64/fn._mm_subs_epu8.html .
     """
-    return max(a, BytesVector(b)) - b
+    alias b_as_vector = BytesVector(b)
+    return max(a, b_as_vector) - b_as_vector
 
 
 @always_inline
@@ -107,12 +108,12 @@ fn continuation_lengths(high_nibbles: BytesVector) -> BytesVector:
 fn carry_continuations(
     initial_lengths: BytesVector, previous_carries: BytesVector
 ) -> BytesVector:
-    var right1 = subtract_with_saturation(
-        _mm_alignr_epi8[16 - 1](initial_lengths, previous_carries), 1
+    var right1 = subtract_with_saturation[1](
+        _mm_alignr_epi8[16 - 1](initial_lengths, previous_carries)
     )
     var sum = initial_lengths + right1
-    var right2 = subtract_with_saturation(
-        _mm_alignr_epi8[16 - 2](sum, previous_carries), 2
+    var right2 = subtract_with_saturation[2](
+        _mm_alignr_epi8[16 - 2](sum, previous_carries)
     )
     return sum + right2
 
