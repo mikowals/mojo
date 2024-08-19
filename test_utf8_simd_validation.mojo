@@ -35,13 +35,42 @@ fn _mm_shuffle_epi8(
 ) -> SIMD[DType.uint8, 16]:
     """The equivalent of https://doc.rust-lang.org/core/arch/x86_64/fn._mm_shuffle_epi8.html .
     """
-    constrained[sys.has_sse4(), "should have sse4"]()
-    var result = sys.llvm_intrinsic[
-        "llvm.x86.ssse3.pshuf.b.128",
-        SIMD[DType.uint8, 16],
-        has_side_effect=False,
-    ](lookup_table, indices)
-    return result
+
+    @parameter
+    if sys.has_sse4():
+        var result = sys.llvm_intrinsic[
+            "llvm.x86.ssse3.pshuf.b.128",
+            SIMD[DType.uint8, 16],
+            has_side_effect=False,
+        ](lookup_table, indices)
+        return result
+    elif sys.has_neon():
+        var result = sys.llvm_intrinsic[
+            "llvm.aarch64.neon.tbl1.v16i8",
+            SIMD[DType.uint8, 16],
+            has_side_effect=False,
+        ](lookup_table, indices)
+        return result
+
+    else:
+        return SIMD[DType.uint8, 16](
+            lookup_table[int(indices[0])],
+            lookup_table[int(indices[1])],
+            lookup_table[int(indices[2])],
+            lookup_table[int(indices[3])],
+            lookup_table[int(indices[4])],
+            lookup_table[int(indices[5])],
+            lookup_table[int(indices[6])],
+            lookup_table[int(indices[7])],
+            lookup_table[int(indices[8])],
+            lookup_table[int(indices[9])],
+            lookup_table[int(indices[10])],
+            lookup_table[int(indices[11])],
+            lookup_table[int(indices[12])],
+            lookup_table[int(indices[13])],
+            lookup_table[int(indices[14])],
+            lookup_table[int(indices[15])],
+        )
 
 
 @always_inline
